@@ -56,6 +56,7 @@ public class InvertedIndex {
     private long TotalKeysFound = 0;
     private int TotalProcessedFiles = 0;
     private int Mwords = 0;
+    private List<Runnable> threadManagerList = new ArrayList<>();
 
     // Getters
     public Map<Integer, String> getFiles() {
@@ -122,6 +123,38 @@ public class InvertedIndex {
         this.IndexDirPath = indexDir;
         this.Mwords = Mwords;
     }
+
+    public class threadManager implements Runnable {
+        public final File initPath;
+        private List<File> FilesList = new ArrayList<>();
+
+        public threadManager(File content) {
+            this.initPath = content;
+        }
+
+        private void searchDirectory(File path) {
+            //File content[] = file.listFiles();
+            if (path.isDirectory()) {
+                searchDirectory(new File(path.getAbsolutePath()));
+            } else {
+                if (checkFile(path.getName())) {
+                    this.FilesList.add(path);
+                }
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                searchDirectory(initPath);
+                this.wait();
+                System.out.println("Ole");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     // Método para la construcción del indice invertido.
     //  1. Busca los ficheros de texto recursivamente en el directorio de entrada.
     //  2. Construye el indice procesando las palabras del fichero.
@@ -133,6 +166,7 @@ public class InvertedIndex {
         TotalLines = 0;
         TotalWords = 0;
         searchDirectoryFiles(InputDirPath);
+        notifyAll();
         buildIndexFiles();
 
         Instant finish = Instant.now();
@@ -180,16 +214,13 @@ public class InvertedIndex {
         File content[] = file.listFiles();
         if (content != null) {
             for (File value : content) {
-                if (value.isDirectory()) {
-                    // Si es un directorio, procesarlo recursivamente.
-                    searchDirectoryFiles(value.getAbsolutePath());
-                } else {
-                    // Si es un fichero de texto, añadirlo a la lista para su posterior procesamiento.
-                    if (checkFile(value.getName())) {
-                        FilesList.add(value);
-                    }
-                }
+                //AQUI ES CREEN ELS THREADS, AIXO NO HAURIA DE ESTAR PER AQUI MAYBE (ARREGLAR JUNT AMB EL RUN I LA FUNCIO SEMBLANT A ESTA AL TM)
+                //PODEM SABER LA CANTITAT DE ARCHIUS INICIALMENT I TREURE EL VALOR MTHREADS
+                Runnable t = new threadManager(value);
+                threadManagerList.add(t);
+                t.run();
             }
+            //this.wait();
         } else
             System.err.printf("Directorio %s no existe.\n", file.getAbsolutePath());
     }
